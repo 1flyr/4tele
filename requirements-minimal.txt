@@ -1,0 +1,13 @@
+# Minimal requirements for basic bot functionality
+python-telegram-bot>=21.0
+python-dotenv>=1.0
+requests>=2.30
+aiohttp>=3.8
+psutil>=5.8
+Pillow>=10.0
+
+# PyInstaller - will use latest compatible version
+pyinstaller
+
+# Cryptography - will use latest compatible version  
+cryptography

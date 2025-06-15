@@ -1,28 +1,22 @@
 # Core Telegram Bot Dependencies
-python-telegram-bot==21.3
-python-dotenv==1.0.1
+python-telegram-bot>=21.3,<22.0
+python-dotenv>=1.0.1
 
-# PyInstaller for Building Executables
-pyinstaller==6.2.0
+# PyInstaller for Building Executables (Python 3.12/3.13 compatible)
+pyinstaller>=6.10.0
 
 # HTTP and Web Requests
-aiohttp==3.9.5
-requests==2.32.3
+aiohttp>=3.9.0
+requests>=2.32.0
 
 # Image Processing
-Pillow==10.4.0
+Pillow>=10.0.0
 
 # System Information and Process Management
-psutil==5.9.6
-
-# Async Support (built into Python 3.7+)
-# asyncio is built-in
-
-# File Compression for Zip Creation
-# zipfile is built-in
+psutil>=5.9.0
 
 # Cryptography for Password Decryption (optional - graceful degradation)
-cryptography==41.0.7
+cryptography>=41.0.0
 
 # Audio Recording (optional - graceful degradation)
 # pyaudio - not included as it requires system dependencies

@@ -4,9 +4,19 @@ Render startup script for Skyy RAT Builder
 """
 
 import os
+import sys
 import asyncio
 import logging
-from builder_bot import main
+
+# Add current directory to Python path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    from builder_bot import main
+except ImportError as e:
+    logging.error(f"Failed to import builder_bot: {e}")
+    logging.error("Make sure all dependencies are installed correctly")
+    sys.exit(1)
 
 if __name__ == "__main__":
     # Configure logging for production
