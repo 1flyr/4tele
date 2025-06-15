@@ -7,6 +7,8 @@ import os
 import sys
 import asyncio
 import logging
+from aiohttp import web
+import threading
 
 # Add current directory to Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -17,6 +19,28 @@ except ImportError as e:
     logging.error(f"Failed to import builder_bot: {e}")
     logging.error("Make sure all dependencies are installed correctly")
     sys.exit(1)
+
+async def health_check(request):
+    """Health check endpoint for Render"""
+    return web.json_response({
+        "status": "healthy",
+        "service": "Skyy RAT Builder",
+        "version": "1.0"
+    })
+
+async def start_web_server():
+    """Start web server for Render health checks"""
+    app = web.Application()
+    app.router.add_get('/', health_check)
+    app.router.add_get('/health', health_check)
+
+    port = int(os.getenv('PORT', 10000))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', port)
+    await site.start()
+    logging.info(f"Web server started on port {port}")
+    return runner
 
 if __name__ == "__main__":
     # Configure logging for production
@@ -40,9 +64,22 @@ if __name__ == "__main__":
         exit(1)
     
     logging.info("Starting Skyy RAT Builder Bot on Render...")
-    
+
+    async def run_services():
+        """Run both web server and Telegram bot"""
+        try:
+            # Start web server for Render
+            web_runner = await start_web_server()
+
+            # Start Telegram bot
+            await main()
+
+        except Exception as e:
+            logging.error(f"Fatal error: {e}")
+            raise
+
     try:
-        asyncio.run(main())
+        asyncio.run(run_services())
     except Exception as e:
         logging.error(f"Fatal error: {e}")
         exit(1)
