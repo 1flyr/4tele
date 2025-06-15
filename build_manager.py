@@ -81,23 +81,28 @@ class BuildManager:
                         # Upload zip to catbox.moe
                         upload_result = await self.upload_to_catbox(zip_path)
                         if upload_result["success"]:
-                        logger.info(f"Upload successful! Cleaning up build directory: {build_id}")
+                            logger.info(f"Upload successful! Cleaning up build directory: {build_id}")
 
-                        # Clean up build directory after successful upload
-                        self.cleanup_build_files(build_id)
+                            # Clean up build directory after successful upload
+                            self.cleanup_build_files(build_id)
 
-                        return {
-                            "success": True,
-                            "download_url": upload_result["url"],
-                            "file_size": file_size,
-                            "auth_token": auth_token,
-                            "build_id": build_id
-                        }
+                            return {
+                                "success": True,
+                                "download_url": upload_result["url"],
+                                "file_size": file_size,
+                                "auth_token": auth_token,
+                                "build_id": build_id
+                            }
+                        else:
+                            logger.error(f"Upload failed, keeping build files for debugging: {upload_result['error']}")
+                            return {
+                                "success": False,
+                                "error": f"Upload failed: {upload_result['error']}"
+                            }
                     else:
-                        logger.error(f"Upload failed, keeping build files for debugging: {upload_result['error']}")
                         return {
                             "success": False,
-                            "error": f"Upload failed: {upload_result['error']}"
+                            "error": f"Zip creation failed: {zip_result['error']}"
                         }
                 else:
                     return {
@@ -570,21 +575,6 @@ Use responsibly and in compliance with applicable laws.
             logger.error(f"Zip creation error: {e}")
             return {"success": False, "error": str(e)}
 
-    def create_zip_file(self, exe_path: Path, zip_path: Path) -> Dict:
-        """Create a zip file containing the executable"""
-        try:
-            import zipfile
-
-            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                zipf.write(exe_path, exe_path.name)
-
-            logger.info(f"Created zip file: {zip_path} (size: {zip_path.stat().st_size} bytes)")
-            return {"success": True, "zip_path": zip_path}
-
-        except Exception as e:
-            logger.error(f"Zip creation error: {e}")
-            return {"success": False, "error": str(e)}
-            
     def get_stub_requirements(self) -> str:
         """Get requirements for the client stub"""
         return """python-telegram-bot==21.3
